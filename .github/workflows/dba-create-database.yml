@@ -1,0 +1,53 @@
+name: dba-create-database
+run-name: "create-database [${{ inputs.correlation_id }}]"
+
+on:
+  workflow_dispatch:
+    inputs:
+      correlation_id:
+        description: "Identifiant de corrélation généré par le provider Terraform"
+        required: true
+        type: string
+      database_name:
+        description: "Nom de la base à créer"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-${{ inputs.database_name }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Simule le framework DBA et produit result.json
+        shell: pwsh
+        env:
+          CORRELATION_ID: ${{ inputs.correlation_id }}
+          DATABASE_NAME: ${{ inputs.database_name }}
+        run: |
+          $result = [ordered]@{
+            schema_version = "1.0"
+            correlation_id = $env:CORRELATION_ID
+            operation      = "create"
+            resource_type  = "database"
+            status         = "success"
+            outputs        = [ordered]@{
+              server_fqdn    = "sql-test.example.internal"
+              database_name  = $env:DATABASE_NAME
+              credential_ref = "kv://test/db-$($env:DATABASE_NAME)"
+            }
+            error          = $null
+          }
+          $result | ConvertTo-Json -Depth 5 | Set-Content result.json
+          Get-Content result.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: result
+          path: result.json
+          retention-days: 1
